@@ -42,7 +42,6 @@ def run_sim(dep_list, window_width):
         fetch_now = []
         for i in range(total_fetched, total_fetched + capacity):
             if i >= total_instructions:
-                break
             fetch_now.append(dep_list[i])
         total_fetched += capacity
 
@@ -70,3 +69,22 @@ def run_sim(dep_list, window_width):
         decode_prev = decode_now
 
     return cycles, total_executed
+    
+
+def main():
+    # check input arguments
+    if len(sys.argv) != 3:
+        print("Usage: python3 parse.py <file_path> <window width>")
+        sys.exit(1)
+
+    # get a list of the dependency lists for each instruction
+    dep_list = read_trace(sys.argv[1])
+
+    # complete cycles until all instructions are executed
+    num_cycles, num_instructions = run_sim(dep_list, int(sys.argv[2]))
+
+    print(f'Completed {num_instructions} instructions in {num_cycles} cycles!')
+    
+
+if __name__ == "__main__":
+    main()
