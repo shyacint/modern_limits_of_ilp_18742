@@ -42,6 +42,7 @@ def run_sim(dep_list, window_width):
         fetch_now = []
         for i in range(total_fetched, total_fetched + capacity):
             if i >= total_instructions:
+                break
             fetch_now.append(dep_list[i])
         total_fetched += capacity
 
