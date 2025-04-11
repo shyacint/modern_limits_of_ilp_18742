@@ -21,7 +21,6 @@ def read_trace(file_path):
                     dep = []
             
                 dependencies.append(dep)
-    
     return dependencies
 
 def run_sim(dep_list, window_width):
@@ -82,9 +81,10 @@ def main():
     dep_list = read_trace(sys.argv[1])
 
     # complete cycles until all instructions are executed
-    num_cycles, num_instructions = run_sim(dep_list, int(sys.argv[2]))
+    width = int(sys.argv[2])
+    num_cycles, num_instructions = run_sim(dep_list, width)
 
-    print(f'Completed {num_instructions} instructions in {num_cycles} cycles!')
+    print(f'For width {width}: Completed {num_instructions} instructions in {num_cycles} cycles!')
     
 
 if __name__ == "__main__":
