@@ -37,11 +37,11 @@ def run_sim(dep_list, window_width):
     next_phys_id = 0      # Assign new physical reg IDs as we go
 
     def rename_instruction(instr_deps):
-        """
-        instr_deps: list of strings (like ["a0","a1","a2"]) with the last one as dest if length>1
-        Returns a new list of strings (the renamed dependencies).
-        We'll rename them all, but each new definition of the last item gets a fresh physical reg.
-        """
+        
+        #instr_deps: list of strings (like ["a0","a1","a2"]) with the last one as dest if length>1
+       # Returns a new list of strings (the renamed dependencies).
+        #We'll rename them all, but each new definition of the last item gets a fresh physical reg.
+        
         nonlocal next_phys_id
         renamed = []
 
