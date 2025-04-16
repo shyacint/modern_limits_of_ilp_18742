@@ -1,4 +1,4 @@
-import sys
+import pandas as pd
 
 def read_trace(file_path):
     dependencies = []
@@ -69,22 +69,27 @@ def run_sim(dep_list, window_width):
         decode_prev = decode_now
 
     return cycles, total_executed
-    
 
 def main():
-    # check input arguments
-    if len(sys.argv) != 3:
-        print("Usage: python3 parse.py <file_path> <window width>")
-        sys.exit(1)
+    # set file paths for traces (will simulate all of these traces)
+    file_paths = ['qemu_dynamic_traces/saxpy_trace', 'qemu_dynamic_traces/matrix_multiply_trace']
+    # set instruction window widths (will simulate all widths)
+    widths = [8, 16]
 
-    # get a list of the dependency lists for each instruction
-    dep_list = read_trace(sys.argv[1])
+    # search through file paths 
+    for f in file_paths: # run through all traces
+        # create the dependency list for this trace
+        dep_list = read_trace(f)
 
-    # complete cycles until all instructions are executed
-    width = int(sys.argv[2])
-    num_cycles, num_instructions = run_sim(dep_list, width)
+        # create an empty data frame 
+        data = []
 
-    print(f'For width {width}: Completed {num_instructions} instructions in {num_cycles} cycles!')
+        for w in widths:
+            num_cycles, num_instructions = run_sim(dep_list, w)
+            data.append({"Width": w, "Total Instructions": num_instructions, "Total Cycles": num_cycles, "IPC": num_instructions/num_cycles})
+
+        df = pd.DataFrame(data)
+        df.to_csv(f"simulation_results/{f.split('/')[1]}.csv", index=False)
     
 
 if __name__ == "__main__":
