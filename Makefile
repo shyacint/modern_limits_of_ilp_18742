@@ -1,6 +1,6 @@
 CC = riscv64-linux-gnu-gcc        # RISC-V C compiler
 QEMU = qemu-riscv64               # QEMU emulator for running RISC-V programs
-QEMU_FLAGS = -d in_asm		      # QEMU flags to generate instruction trace and execution trace
+QEMU_FLAGS = -d in_asm,cpu		      # QEMU flags to generate instruction trace and execution trace
 QEMU_CPU = rv64                   # options = {max, rv64, shakti-c, sifive-e51, sifive-u54, thead-c906, veyron-v1, x-rv128}
 CFLAGS = -O2 -static              # Compile flags: -O2 for optimization, -static for static linking
 LIBRARY_PATH = /usr/riscv64-linux-gnu # Path to RISC-V libraries needed by QEMU
@@ -44,9 +44,5 @@ run: $(PROGS)
 
 clean_bin:
 	rm -f *.bin
-
-# Removes the entire trace log directory
-clean_traces:
-	rm -f $(TRACE_DIR)/*_trace
 
 clean: clean_bin clean_traces

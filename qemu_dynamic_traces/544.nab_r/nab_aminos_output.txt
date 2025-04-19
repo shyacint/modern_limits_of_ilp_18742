@@ -1,0 +1,3 @@
+nabmd aminos 391519156
+
+Reading .pdb file (aminos/aminos.pdb)

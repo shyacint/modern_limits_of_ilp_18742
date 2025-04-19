@@ -1,0 +1,4 @@
+# Compile by products
+*.bin
+*.out
+*.o
