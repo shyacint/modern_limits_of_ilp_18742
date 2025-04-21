@@ -2,3 +2,6 @@
 *.bin
 *.out
 *.o
+*.log
+*.DS_Store
+target
