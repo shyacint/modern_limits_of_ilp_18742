@@ -172,9 +172,9 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
         // determine if CAN execute
         let mut decide_execute = vec![true; len];
         for i in 0..len {
-            let inst1 = &inst_list[i];
+            let inst1 = &execute_now[i];
             for j in 0..i {
-                let inst2 = &inst_list[j];
+                let inst2 = &execute_now[j];
                 if inst1.reg_read_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y)) {
                     decide_execute[i] = false;
                     break; // this checks a RAW dependency
