@@ -114,7 +114,6 @@ def run_qemu_trace(benchmark, output_dir, compress=False):
             os.remove(trace_path)
             print(f"[INFO] Compressed trace → {compressed_path}")
 
-# --- ENTRY POINT ---
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run SPEC CPU2017 benchmarks under QEMU and generate traces.")
