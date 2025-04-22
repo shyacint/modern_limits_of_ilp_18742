@@ -14,6 +14,8 @@ struct InstructionRaw {
 struct Instruction {
     reg_read_dep: Vec<String>,
     reg_write_dep: Vec<String>,
+    mem_store: bool,
+    mem_load: bool,
 }
 
 fn parse_offset(input: &str) -> (String, String) {
@@ -64,6 +66,9 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
         // create empty dependency lists
         let mut reg_read_dep = vec![];
         let mut reg_write_dep = vec![];
+        // create whether a memory load or store
+        let mut mem_store = false;
+        let mut mem_load = false;
 
         // fill dependency lists as necessary
         match inst.inst.as_str() {
@@ -84,7 +89,7 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
                 reg_write_dep.push(inst.reg_dep[0].clone());
                 let (_, reg) = parse_offset(&inst.reg_dep[1]);
                 reg_read_dep.push(reg.clone());
-                // TODO: add memory dependency
+                mem_load = true;
             }, 
             "jalr" => {
                 reg_write_dep.push(inst.reg_dep[0].clone());
@@ -96,7 +101,7 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
                 reg_read_dep.push(inst.reg_dep[0].clone());
                 let(_, reg) = parse_offset(&inst.reg_dep[1]);
                 reg_read_dep.push(reg.clone());
-                // TODO: add memory dependency
+                mem_store = true;
             },
             "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
                 reg_write_dep.push(inst.reg_dep[0].clone());
@@ -123,13 +128,13 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
                 reg_read_dep.push(inst.reg_dep[1].clone());
                 let (_, reg) = parse_offset(&inst.reg_dep[2]);
                 reg_read_dep.push(reg.clone());
-                // TODO: add memory dependency logic
+                mem_store = true;
             },
             "ret" | "ecall" | "fence" | "nop" => (),
             _ => panic!("Instruction {} not implemented!", inst.inst.as_str()),
         }
 
-        inst_list.push(Instruction{reg_read_dep, reg_write_dep})
+        inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load})
     }
 
     Ok(inst_list)
@@ -172,9 +177,12 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
         // determine if CAN execute
         let mut decide_execute = vec![true; len];
         for i in 0..len {
-            let inst1 = &execute_now[i];
-            for j in 0..i {
+            let inst1 = &execute_now[i]; // instruction being examined 
+
+            for j in 0..i { // iterate through earlier instruction in the execute stage
                 let inst2 = &execute_now[j];
+
+                // check for register dependencies
                 if inst1.reg_read_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y)) {
                     decide_execute[i] = false;
                     break; // this checks a RAW dependency
@@ -188,7 +196,22 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
                         break;
                     }
                 }
+
+                // check for memory dependencies
+                if inst1.mem_load { // if a load, only need to check for a store
+                    if inst2.mem_store {
+                        decide_execute[i] = false;
+                        break;
+                    }
+                } else if inst1.mem_store { // if a store, need to check for either load or store
+                    if inst2.mem_store | inst2.mem_load {
+                        decide_execute[i] = false;
+                        break;
+                    }
+
+                }
             }
+
         }
 
         // execute_prev is all the instructions which cannot yet be executed
@@ -207,7 +230,7 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
 fn main() -> io::Result<()>{
     // define files & widths to parse through
     let files = vec!["502.gcc_r/gcc_200_trace.log"];
-    let widths: Vec<usize> = vec![8,16, 32, 64, 128, 256];
+    let widths: Vec<usize> = vec![1, 2, 4, 8];
     let renam = vec![true, false];
 
     // iterate through trace files
