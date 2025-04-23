@@ -17,7 +17,7 @@ struct Instruction {
     reg_write_dep: Vec<String>,
     mem_store: bool,
     mem_load: bool,
-    mem_addr: String,
+    mem_addr: Option<String>,
 }
 
 fn parse_offset(input: &str) -> (String, String) {
@@ -51,7 +51,7 @@ fn parse(f: &str) -> io::Result<Vec<InstructionRaw>> {
                 let inst = if len > 2 {words[2].split(".").map(|s| s.to_string()).collect()} else {vec![]};
                 let arguments = if len > 3 {words[3].split(",").map(|s| s.to_string()).collect()} else {vec![]};
 
-                raw_instructions.push(InstructionRaw{inst: inst[0].clone(), arguments, mem_addr: None})      
+                raw_instructions.push(InstructionRaw{inst: inst[0].clone(), arguments, mem_addr: Some("TODO".to_string())})      
             }
         }
 
@@ -136,7 +136,7 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
             _ => panic!("Instruction {} not implemented!", inst.inst.as_str()),
         }
 
-        inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load, mem_addr: "WARNINGNOTIMPLEMENTED".to_string()})
+        inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load, mem_addr: inst.mem_addr})
     }
 
     Ok(inst_list)
