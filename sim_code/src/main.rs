@@ -103,7 +103,7 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
             },
-            "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
+            "rem" | "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
                 reg_write_dep.push(inst.reg_dep[0].clone());
                 reg_read_dep.push(inst.reg_dep[1].clone());
                 reg_read_dep.push(inst.reg_dep[2].clone());
@@ -182,6 +182,19 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
             for j in 0..i { // iterate through earlier instruction in the execute stage
                 let inst2 = &execute_now[j];
 
+                // check for memory dependencies
+                if inst1.mem_store {
+                    if inst2.mem_store | inst2.mem_load {
+                        decide_execute[i] = false;
+                        break;
+                    }
+                } else if inst1.mem_load {
+                    if inst2.mem_store {
+                        decide_execute[i] = false;
+                        break;
+                    }
+                }
+
                 // check for register dependencies
                 if inst1.reg_read_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y)) {
                     decide_execute[i] = false;
@@ -195,20 +208,6 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
                         decide_execute[i] = false;
                         break;
                     }
-                }
-
-                // check for memory dependencies
-                if inst1.mem_load { // if a load, only need to check for a store
-                    if inst2.mem_store {
-                        decide_execute[i] = false;
-                        break;
-                    }
-                } else if inst1.mem_store { // if a store, need to check for either load or store
-                    if inst2.mem_store | inst2.mem_load {
-                        decide_execute[i] = false;
-                        break;
-                    }
-
                 }
             }
 
@@ -229,8 +228,8 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
 
 fn main() -> io::Result<()>{
     // define files & widths to parse through
-    let files = vec!["502.gcc_r/gcc_200_trace.log"];
-    let widths: Vec<usize> = vec![1, 2, 4, 8];
+    let files = vec!["505.mcf_r/mcf_trace.log"];
+    let widths: Vec<usize> = vec![1, 2, 4, 8, 16, 32, 64, 128, 512, 1024, 0];
     let renam = vec![true, false];
 
     // iterate through trace files
@@ -247,11 +246,12 @@ fn main() -> io::Result<()>{
 
         // iterate through width/renaming array to get IPC
         for w in &widths {
+            let width = if *w > 0 {*w} else {inst_list.len()};
             for r in &renam {
-                let (num_i, num_c) = simulate(&inst_list, w, *r)?;
+                let (num_i, num_c) = simulate(&inst_list, &width, *r)?;
                 let ipc = num_i as f64 / num_c as f64;
 
-                writer.write_record(&[w.to_string(), r.to_string(), num_i.to_string(), num_c.to_string(), ipc.to_string()])?;
+                writer.write_record(&[width.to_string(), r.to_string(), num_i.to_string(), num_c.to_string(), ipc.to_string()])?;
             }
         }
 
