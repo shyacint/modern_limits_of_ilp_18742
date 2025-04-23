@@ -6,7 +6,8 @@ use std::io::{self, BufRead};
 #[derive(Clone)]
 struct InstructionRaw {
     inst: String,
-    reg_dep: Vec<String>,
+    arguments: Vec<String>,
+    mem_addr: Option<String>, // in case of a memory instruction
 }
 
 #[derive(Debug)]
@@ -16,6 +17,7 @@ struct Instruction {
     reg_write_dep: Vec<String>,
     mem_store: bool,
     mem_load: bool,
+    mem_addr: String,
 }
 
 fn parse_offset(input: &str) -> (String, String) {
@@ -47,9 +49,9 @@ fn parse(f: &str) -> io::Result<Vec<InstructionRaw>> {
             if words[0].starts_with("0x") {
                 // this is an instruction line -> save instruction, register dependencies, (empty) corresponding memory dependencies, and optional memory comment
                 let inst = if len > 2 {words[2].split(".").map(|s| s.to_string()).collect()} else {vec![]};
-                let reg_dep = if len > 3 {words[3].split(",").map(|s| s.to_string()).collect()} else {vec![]};
+                let arguments = if len > 3 {words[3].split(",").map(|s| s.to_string()).collect()} else {vec![]};
 
-                raw_instructions.push(InstructionRaw{inst: inst[0].clone(), reg_dep})      
+                raw_instructions.push(InstructionRaw{inst: inst[0].clone(), arguments, mem_addr: None})      
             }
         }
 
@@ -73,60 +75,60 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
         // fill dependency lists as necessary
         match inst.inst.as_str() {
             "jal" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
+                reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push("pc".to_string());
                 reg_write_dep.push("pc".to_string());
             }
             "auipc" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
+                reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push("pc".to_string());
             }, 
             "addi" | "mv" | "andi" | "slli" | "srli" | "neg" | "addiw" | "slliw" | "xori" | "sext" | "sraiw" | "srliw" | "snez" | "not" | "ori" | "srai" | "negw" | "seqz" | "sgtz" | "fcvt" | "fmv" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
-                reg_read_dep.push(inst.reg_dep[1].clone());
+                reg_write_dep.push(inst.arguments[0].clone());
+                reg_read_dep.push(inst.arguments[1].clone());
             }, 
             "ld" | "lw" | "lbu" | "lhu" | "lwu" | "lb" | "fld" | "lr" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
-                let (_, reg) = parse_offset(&inst.reg_dep[1]);
+                reg_write_dep.push(inst.arguments[0].clone());
+                let (_, reg) = parse_offset(&inst.arguments[1]);
                 reg_read_dep.push(reg.clone());
                 mem_load = true;
             }, 
             "jalr" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
-                reg_read_dep.push(inst.reg_dep[1].clone());
+                reg_write_dep.push(inst.arguments[0].clone());
+                reg_read_dep.push(inst.arguments[1].clone());
                 reg_write_dep.push("pc".to_string());
                 reg_read_dep.push("pc".to_string());
             },
             "sd" | "sw" | "sb" | "sh" | "fsd" => {
-                reg_read_dep.push(inst.reg_dep[0].clone());
-                let(_, reg) = parse_offset(&inst.reg_dep[1]);
+                reg_read_dep.push(inst.arguments[0].clone());
+                let(_, reg) = parse_offset(&inst.arguments[1]);
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
             },
             "rem" | "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
-                reg_read_dep.push(inst.reg_dep[1].clone());
-                reg_read_dep.push(inst.reg_dep[2].clone());
+                reg_write_dep.push(inst.arguments[0].clone());
+                reg_read_dep.push(inst.arguments[1].clone());
+                reg_read_dep.push(inst.arguments[2].clone());
             }, 
             "bnez" | "beqz" | "jr" | "blez" | "bltz" | "bgtz" | "bgez" => {
-                reg_read_dep.push(inst.reg_dep[0].clone());
+                reg_read_dep.push(inst.arguments[0].clone());
                 reg_write_dep.push("pc".to_string());
             }, 
             "bleu" | "bne" | "bgtu" | "beq" | "ble" | "bgt" => {
-                reg_read_dep.push(inst.reg_dep[0].clone());
-                reg_read_dep.push(inst.reg_dep[1].clone());
+                reg_read_dep.push(inst.arguments[0].clone());
+                reg_read_dep.push(inst.arguments[1].clone());
                 reg_write_dep.push("pc".to_string());
             },
             "lui" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
+                reg_write_dep.push(inst.arguments[0].clone());
             },
             "j" => {
                 reg_write_dep.push("pc".to_string());
             }, 
             "amoswap" | "sc" | "amoadd" | "amomaxu" => {
-                reg_write_dep.push(inst.reg_dep[0].clone());
-                reg_read_dep.push(inst.reg_dep[1].clone());
-                let (_, reg) = parse_offset(&inst.reg_dep[2]);
+                reg_write_dep.push(inst.arguments[0].clone());
+                reg_read_dep.push(inst.arguments[1].clone());
+                let (_, reg) = parse_offset(&inst.arguments[2]);
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
             },
@@ -134,13 +136,13 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
             _ => panic!("Instruction {} not implemented!", inst.inst.as_str()),
         }
 
-        inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load})
+        inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load, mem_addr: "WARNINGNOTIMPLEMENTED".to_string()})
     }
 
     Ok(inst_list)
 }
 
-fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::Result<(usize, usize)> {
+fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool, memory_renaming: bool) -> io::Result<(usize, usize)> {
     // intialize counting logic
     let total_instructions  = inst_list.len();
     let mut total_executed = 0;
@@ -190,8 +192,16 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
                     }
                 } else if inst1.mem_load {
                     if inst2.mem_store {
-                        decide_execute[i] = false;
-                        break;
+                        if memory_renaming {
+                            if inst1.mem_addr == inst2.mem_addr {
+                                decide_execute[i] = false;
+                                break;
+                            }
+                        } else {
+                            decide_execute[i] = false;
+                            break;
+                        }
+
                     }
                 }
 
@@ -200,7 +210,7 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, renaming: bool) -> io::
                     decide_execute[i] = false;
                     break; // this checks a RAW dependency
                 }
-                if !renaming {
+                if !register_renaming {
                     // if not renaming, check other depedencies
                     let war = inst1.reg_write_dep.iter().any(|x| inst2.reg_read_dep.iter().any(|y| x == y));
                     let waw = inst1.reg_write_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y));
@@ -230,7 +240,8 @@ fn main() -> io::Result<()>{
     // define files & widths to parse through
     let files = vec!["505.mcf_r/mcf_trace.log"];
     let widths: Vec<usize> = vec![1, 2, 4, 8, 16, 32, 64, 128, 512, 1024, 0];
-    let renam = vec![true, false];
+    let reg_renam = vec![true, false];
+    let mem_renam = vec![false];
 
     // iterate through trace files
     for f in files {
@@ -242,16 +253,18 @@ fn main() -> io::Result<()>{
         // create csv file to write to
         let csv_file = File::create(format!("/Users/fionafisher/Desktop/s25/modern_limits_of_ilp_18742/simulation_results/{}.csv", f))?;
         let mut writer = Writer::from_writer(csv_file);
-        writer.write_record(&["Width", "Register Renaming", "Instructions", "Cycles", "IPC"])?;
+        writer.write_record(&["Width", "Register Renaming", "Memory Renaming", "Instructions", "Cycles", "IPC"])?;
 
         // iterate through width/renaming array to get IPC
         for w in &widths {
             let width = if *w > 0 {*w} else {inst_list.len()};
-            for r in &renam {
-                let (num_i, num_c) = simulate(&inst_list, &width, *r)?;
-                let ipc = num_i as f64 / num_c as f64;
+            for r in &reg_renam {
+                for m in &mem_renam {
+                    let (num_i, num_c) = simulate(&inst_list, &width, *r, *m)?;
+                    let ipc = num_i as f64 / num_c as f64;
 
-                writer.write_record(&[width.to_string(), r.to_string(), num_i.to_string(), num_c.to_string(), ipc.to_string()])?;
+                    writer.write_record(&[width.to_string(), r.to_string(), m.to_string(), num_i.to_string(), num_c.to_string(), ipc.to_string()])?;
+                }
             }
         }
 
