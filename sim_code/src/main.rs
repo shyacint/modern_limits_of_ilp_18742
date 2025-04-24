@@ -18,6 +18,8 @@ struct Instruction {
     mem_store: bool,
     mem_load: bool,
     mem_addr: Option<String>,
+    key: i32,
+    shortcut_dep: i32, // write the key of the blocking instruction
 }
 
 fn parse_offset(input: &str) -> (String, String) {
@@ -63,6 +65,9 @@ fn parse(f: &str) -> io::Result<Vec<InstructionRaw>> {
 fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>> {
     // set buffer for translated instruction list
     let mut inst_list = vec![];
+
+    // index
+    let mut i = 0;
 
     for inst in raw_inst_list {
         // create empty dependency lists
@@ -136,7 +141,8 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
             _ => panic!("Instruction {} not implemented!", inst.inst.as_str()),
         }
 
-        inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load, mem_addr: inst.mem_addr})
+        inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load, mem_addr: inst.mem_addr, key: i, shortcut_dep: -1});
+        i = i + 1;
     }
 
     Ok(inst_list)
@@ -181,6 +187,13 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
         for i in 0..len {
             let inst1 = &execute_now[i]; // instruction being examined 
 
+            if inst1.shortcut_dep >= 0 {
+                if (&execute_now[0..i]).iter().any(|prev| prev.key == inst1.shortcut_dep) {
+                    decide_execute[i] = false;
+                    continue; // if the the instruction is matched to another still remaining in execution, no need to check
+                }
+            }
+
             for j in 0..i { // iterate through earlier instruction in the execute stage
                 let inst2 = &execute_now[j];
 
@@ -188,6 +201,7 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
                 if inst1.mem_store {
                     if inst2.mem_store | inst2.mem_load {
                         decide_execute[i] = false;
+                        execute_now[i].shortcut_dep = execute_now[j].key;
                         break;
                     }
                 } else if inst1.mem_load {
@@ -195,10 +209,12 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
                         if memory_renaming {
                             if inst1.mem_addr == inst2.mem_addr {
                                 decide_execute[i] = false;
+                                execute_now[i].shortcut_dep = execute_now[j].key;
                                 break;
                             }
                         } else {
                             decide_execute[i] = false;
+                            execute_now[i].shortcut_dep = execute_now[j].key;
                             break;
                         }
 
@@ -208,6 +224,7 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
                 // check for register dependencies
                 if inst1.reg_read_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y)) {
                     decide_execute[i] = false;
+                    execute_now[i].shortcut_dep = execute_now[j].key;
                     break; // this checks a RAW dependency
                 }
                 if !register_renaming {
@@ -216,6 +233,7 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
                     let waw = inst1.reg_write_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y));
                     if war | waw {
                         decide_execute[i] = false;
+                        execute_now[i].shortcut_dep = execute_now[j].key;
                         break;
                     }
                 }
@@ -238,7 +256,7 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
 
 fn main() -> io::Result<()>{
     // define files & widths to parse through
-    let files = vec!["spec17/502.gcc_r/gcc_200_trace.log"];
+    let files = vec!["spec06/403.gcc/gcc_trace.log"];
     let widths: Vec<usize> = vec![1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
     // iterate through trace files
