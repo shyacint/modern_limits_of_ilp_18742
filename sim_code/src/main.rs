@@ -87,7 +87,7 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
             }, 
-            "ld" | "lw" | "lbu" | "lhu" | "lwu" | "lb" | "fld" | "lr" => {
+            "ld" | "lw" | "lbu" | "lhu" | "lwu" | "lb" | "fld" | "lr" | "lh" | "flw" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 let (_, reg) = parse_offset(&inst.arguments[1]);
                 reg_read_dep.push(reg.clone());
@@ -99,13 +99,13 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
                 reg_write_dep.push("pc".to_string());
                 reg_read_dep.push("pc".to_string());
             },
-            "sd" | "sw" | "sb" | "sh" | "fsd" => {
+            "sd" | "sw" | "sb" | "sh" | "fsd" | "fsw" => {
                 reg_read_dep.push(inst.arguments[0].clone());
                 let(_, reg) = parse_offset(&inst.arguments[1]);
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
             },
-            "rem" | "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
+            "remw" | "sra" | "divw" | "divuw" | "rem" | "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
                 reg_read_dep.push(inst.arguments[2].clone());
@@ -238,10 +238,8 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
 
 fn main() -> io::Result<()>{
     // define files & widths to parse through
-    let files = vec!["505.mcf_r/mcf_trace.log"];
-    let widths: Vec<usize> = vec![1, 2, 4, 8, 16, 32, 64, 128, 512, 1024, 0];
-    let reg_renam = vec![true, false];
-    let mem_renam = vec![false];
+    let files = vec!["spec17/502.gcc_r/gcc_200_trace.log"];
+    let widths: Vec<usize> = vec![1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
     // iterate through trace files
     for f in files {
@@ -258,9 +256,9 @@ fn main() -> io::Result<()>{
         // iterate through width/renaming array to get IPC
         for w in &widths {
             let width = if *w > 0 {*w} else {inst_list.len()};
-            for r in &reg_renam {
-                for m in &mem_renam {
-                    let (num_i, num_c) = simulate(&inst_list, &width, *r, *m)?;
+            for r in [true, false] {
+                for m in [false] {
+                    let (num_i, num_c) = simulate(&inst_list, &width, r, m)?;
                     let ipc = num_i as f64 / num_c as f64;
 
                     writer.write_record(&[width.to_string(), r.to_string(), m.to_string(), num_i.to_string(), num_c.to_string(), ipc.to_string()])?;
