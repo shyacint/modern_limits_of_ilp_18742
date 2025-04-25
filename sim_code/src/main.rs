@@ -1,6 +1,7 @@
 use csv::Writer;
 use std::fs::File;
 use std::io::{self, BufRead};
+use rayon::prelude::*;
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -148,6 +149,53 @@ fn translate(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Instruction>>
     Ok(inst_list)
 }
 
+fn check_dependencies(inst1: &Instruction, prev: &[Instruction], memory_renaming: bool, register_renaming: bool) -> (bool, i32) {
+    
+    let key = prev.iter().find_map(|inst2| { // returns the key of a dependency if we find one
+
+        if (inst1.shortcut_dep >= 0) & (inst2.key == inst1.shortcut_dep) { // check if a shortcut dependency is still in the execute stage
+            return Some(inst2.key);
+        }
+
+        if inst1.mem_store { // check for memory dependencies
+            if inst2.mem_store | inst2.mem_load {
+                return Some(inst2.key);
+            }
+        } else if inst1.mem_load {
+            if inst2.mem_store {
+                if memory_renaming {
+                     if inst1.mem_addr == inst2.mem_addr {
+                        return Some(inst2.key);
+                    }
+                } else {
+                    return Some(inst2.key);
+                }
+             }
+        }
+
+        if inst1.reg_read_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y)) { // check for register dependency
+            return Some(inst2.key); // this checks a RAW dependency
+        }
+        if !register_renaming {
+            // if not renaming, check other depedencies
+            let war = inst1.reg_write_dep.iter().any(|x| inst2.reg_read_dep.iter().any(|y| x == y));
+            let waw = inst1.reg_write_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y));
+            if war | waw {
+                return Some(inst2.key);
+            }
+        }
+
+        None
+    });
+
+    if let Some(k) = key { // if a dependency was logged, return false and the key
+        return (false, k);
+    } else { // else return true, and -1
+        return (true, -1);
+    }
+
+}
+
 fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool, memory_renaming: bool) -> io::Result<(usize, usize)> {
     // intialize counting logic
     let total_instructions  = inst_list.len();
@@ -175,74 +223,30 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
         total_fetched += capacity; // update number of fetched
 
         // then, move all previous fetch instruction to decode
-        let decode_now = fetch_prev.clone();
+        let decode_now = fetch_prev;
 
         // execute all instructions which can be executed (those in the previous exeucte or decode stage)
-        let mut execute_now: Vec<Instruction> = execute_prev.clone();
-        execute_now.extend(decode_prev.clone());
+        let mut execute_now: Vec<Instruction> = [execute_prev, decode_prev].concat();
 
         let len = execute_now.len();
         // determine if CAN execute
-        let mut decide_execute = vec![true; len];
-        for i in 0..len {
-            let inst1 = &execute_now[i]; // instruction being examined 
 
-            if inst1.shortcut_dep >= 0 {
-                if (&execute_now[0..i]).iter().any(|prev| prev.key == inst1.shortcut_dep) {
-                    decide_execute[i] = false;
-                    continue; // if the the instruction is matched to another still remaining in execution, no need to check
-                }
-            }
+        let decide_execute: Vec<(bool, i32)> = execute_now.par_iter().enumerate().map(|(i, inst)| {
+            check_dependencies(inst, &execute_now[..i], memory_renaming, register_renaming)
+        }).collect();
 
-            for j in 0..i { // iterate through earlier instruction in the execute stage
-                let inst2 = &execute_now[j];
-
-                // check for memory dependencies
-                if inst1.mem_store {
-                    if inst2.mem_store | inst2.mem_load {
-                        decide_execute[i] = false;
-                        execute_now[i].shortcut_dep = execute_now[j].key;
-                        break;
-                    }
-                } else if inst1.mem_load {
-                    if inst2.mem_store {
-                        if memory_renaming {
-                            if inst1.mem_addr == inst2.mem_addr {
-                                decide_execute[i] = false;
-                                execute_now[i].shortcut_dep = execute_now[j].key;
-                                break;
-                            }
-                        } else {
-                            decide_execute[i] = false;
-                            execute_now[i].shortcut_dep = execute_now[j].key;
-                            break;
-                        }
-
-                    }
-                }
-
-                // check for register dependencies
-                if inst1.reg_read_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y)) {
-                    decide_execute[i] = false;
-                    execute_now[i].shortcut_dep = execute_now[j].key;
-                    break; // this checks a RAW dependency
-                }
-                if !register_renaming {
-                    // if not renaming, check other depedencies
-                    let war = inst1.reg_write_dep.iter().any(|x| inst2.reg_read_dep.iter().any(|y| x == y));
-                    let waw = inst1.reg_write_dep.iter().any(|x| inst2.reg_write_dep.iter().any(|y| x == y));
-                    if war | waw {
-                        decide_execute[i] = false;
-                        execute_now[i].shortcut_dep = execute_now[j].key;
-                        break;
-                    }
-                }
-            }
-
-        }
 
         // execute_prev is all the instructions which cannot yet be executed
-        execute_prev = execute_now.iter().zip(decide_execute.iter()).filter_map(|(inst,&deci)| if !deci {Some(inst.clone())} else {None}).collect();
+        execute_prev = vec![];
+        let mut removed = 0;
+        for (i, (decide, key)) in decide_execute.iter().enumerate() {
+            if !decide {
+                execute_now[i - removed].shortcut_dep = *key;
+                execute_prev.push(execute_now.remove(i - removed));
+                removed += 1;
+            }
+        }
+
         total_executed += len - execute_prev.len();
 
         // transfer decode and fetch stages for the next cycle
@@ -256,7 +260,9 @@ fn simulate(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool
 
 fn main() -> io::Result<()>{
     // define files & widths to parse through
-    let files = vec!["spec06/403.gcc/gcc_trace.log"];
+    // let files = vec!["spec06/403.gcc/gcc_trace.log", "spec06/429.mcf/mcf_trace.log", "spec06/453.povray/povray_trace.log", "spec06/458.sjeng/sjeng_trace.log", "spec06/470.lbm/lbm_trace.log", "spec06/471.omnetpp/omnetpp_trace.log"];
+    // let files = vec!["spec17/502.gcc_r/gcc_200_trace.log", "spec17/505.mcf_r/mcf_trace.log", "spec17/511.povray_r/povray_trace.log", "spec17/519.lbm_r/lbm_trace.log", "spec17/520.omnetpp_r/omnetpp_trace.log", "spec17/531.seepsjeng_r/deepsjeng_trace.log", "spec17/544.nab_r/nab_aminos_trace.log"];
+    let files = vec!["spec17/531.deepsjeng_r/deepsjeng_trace.log", "spec17/544.nab_r/nab_aminos_trace.log"];
     let widths: Vec<usize> = vec![1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
 
     // iterate through trace files
