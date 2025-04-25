@@ -16,10 +16,6 @@ pub fn parse_file(f: &str) -> io::Result<Vec<InstructionRaw>> { // return a vect
 
     for line in lines.lines() { // iterate through lines of file
 
-        if raw_instructions.len() > 10 {
-            break;
-        }
-
         // split each line by whitespace
         let line_s = String::from(line?);
         let words: Vec<&str> = line_s.split_whitespace().collect();
