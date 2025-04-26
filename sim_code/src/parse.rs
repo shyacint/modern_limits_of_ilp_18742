@@ -33,10 +33,9 @@ pub fn parse_file(f: &str) -> io::Result<Vec<InstructionRaw>> { // return a vect
             } else if words[0] == "Trace" { // if this indicates an execution of an instruction, find that instruction and add it to the instruction list
                 assert!(len >= 3);
                 let args: Vec<String> = words[3].split("/").map(|s| s.to_string()).collect();
-                if let Some(inst) = pc_mapping.get(&args[1][8..].to_string()) {
+                let pc = args[1][8..].to_string();
+                if let Some(inst) = pc_mapping.get(&pc) {
                     raw_instructions.push(inst.clone());
-                } else {
-                    panic!("Encountered trace to unmapped PC.");
                 }
 
             } else if words[0] == "MEM_OP:" { // if this indicates a memory op, add the memory address to the last pushed instruction

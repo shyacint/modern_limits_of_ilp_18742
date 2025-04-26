@@ -13,20 +13,24 @@ fn check_dependencies(inst1: &Instruction, prev: &[Instruction], memory_renaming
         }
 
         // check memory dependencies
-        if inst1.mem_store { // if a store, must wait for all earlier loads and stores to resolve
-            if inst2.mem_store | inst2.mem_load {
-                return Some(inst2.key);
-            }
-        } else if inst1.mem_load { // if a load, must wait for all earlier stores OR actual blocking earlier store (if renaming)
-            if inst2.mem_store {
-                if memory_renaming {
-                     if inst1.mem_addr == inst2.mem_addr {
+        if let Some(addr1) = &inst1.mem_addr {
+            if let Some(addr2) = &inst2.mem_addr {
+                if inst1.mem_store { // if a store, must wait for all earlier loads and stores to resolve
+                    if inst2.mem_store | inst2.mem_load {
                         return Some(inst2.key);
                     }
-                } else {
-                    return Some(inst2.key);
+                } else if inst1.mem_load { // if a load, must wait for all earlier stores OR actual blocking earlier store (if renaming)
+                    if inst2.mem_store {
+                        if memory_renaming {
+                             if addr1 == addr2 {
+                                return Some(inst2.key);
+                            }
+                        } else {
+                            return Some(inst2.key);
+                        }
+                     }
                 }
-             }
+            }
         }
 
         // check for register dependencies
