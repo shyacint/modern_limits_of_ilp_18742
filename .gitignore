@@ -1,0 +1,8 @@
+# Compile by products
+*.bin
+*.out
+*.o
+*.log
+*.DS_Store
+target
+qemu_dynamic_traces/
