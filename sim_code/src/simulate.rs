@@ -1,36 +1,40 @@
 use std::io; // for returning error result
 
-use crate::models::Instruction;
+use crate::models::{Instruction, Window};
 
 // iterates through prev and checks for blocking dependencies with inst1
 // returns bool - can execute or not, and i32 - key of blocking dependency (or -1)
 fn check_dependencies(inst1: &Instruction, prev: &[Instruction], memory_renaming: bool, register_renaming: bool) -> (bool, i32) {
     
-    let key = prev.iter().find_map(|inst2| { // iterates through prev, returns the blocking key if we get it
+    let key = prev.iter().rev().find_map(|inst2| { // iterates through prev, returns the blocking key if we get it
          // check if a logged shortcut dependency is still in the execute stage
         if (inst1.shortcut_dep >= 0) & (inst2.key == inst1.shortcut_dep) {
             return Some(inst2.key);
         }
 
         // check memory dependencies
-        if let Some(addr1) = &inst1.mem_addr {
-            if let Some(addr2) = &inst2.mem_addr {
-                if inst1.mem_store { // if a store, must wait for all earlier loads and stores to resolve
-                    if inst2.mem_store | inst2.mem_load {
-                        return Some(inst2.key);
-                    }
-                } else if inst1.mem_load { // if a load, must wait for all earlier stores OR actual blocking earlier store (if renaming)
-                    if inst2.mem_store {
-                        if memory_renaming {
-                             if addr1 == addr2 {
+        if inst1.mem_store { // if a store, must wait for all earlier loads and stores to resolve
+            if inst2.mem_store | inst2.mem_load {
+                return Some(inst2.key);
+            }
+        } else if inst1.mem_load { // if a load, must wait for all earlier stores OR actual blocking earlier store (if renaming)
+            if inst2.mem_store {
+                if memory_renaming {
+                    if let Some(addr1) = &inst1.mem_addr { // can only check memory renaming if the memory address has been logged
+                        if let Some(addr2) = &inst2.mem_addr {
+                            if addr1 == addr2 {
                                 return Some(inst2.key);
                             }
                         } else {
-                            return Some(inst2.key);
+                            Some(inst2.key);
                         }
-                     }
+                    } else {
+                        Some(inst2.key);
+                    }
+                } else {
+                    return Some(inst2.key);
                 }
-            }
+             }
         }
 
         // check for register dependencies
@@ -66,15 +70,13 @@ pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renam
     let mut num_cycles: usize = 0;
 
     // intialize state logic
-    let mut fetch_prev: Vec<Instruction> = vec![];
-    let mut decode_prev: Vec<Instruction> = vec![];
-    let mut execute_prev: Vec<Instruction> = vec![];
+    let mut window = Window{fetch: vec![], decode: vec![], execute: vec![]};
 
     while total_executed < total_instructions {
         num_cycles += 1;
 
         // first, fetch all instructions which can be fetched
-        let capacity = width - (fetch_prev.len() + decode_prev.len() + execute_prev.len()); // capacity is width - current num of instructions in window
+        let capacity = width - (window.fetch.len() + window.decode.len() + window.execute.len()); // capacity is width - current num of instructions in window
         let mut fetch_now: Vec<Instruction> = vec![];
         for i in total_fetched..(total_fetched + capacity) {
             if i >= total_instructions {
@@ -85,10 +87,10 @@ pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renam
         total_fetched += capacity; // update number of fetched
 
         // then, move all previous fetch instruction to decode
-        let decode_now = fetch_prev;
+        let decode_now = window.fetch;
 
         // execute all instructions which can be executed (those in the previous exeucte or decode stage)
-        let mut execute_now: Vec<Instruction> = [execute_prev, decode_prev].concat();
+        let mut execute_now: Vec<Instruction> = [window.execute, window.decode].concat();
 
         let len = execute_now.len();
         // determine if CAN execute
@@ -99,21 +101,21 @@ pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renam
 
 
         // execute_prev is all the instructions which cannot yet be executed
-        execute_prev = vec![];
+        window.execute = vec![];
         let mut removed = 0;
         for (i, (decide, key)) in decide_execute.iter().enumerate() {
             if !decide {
                 execute_now[i - removed].shortcut_dep = *key;
-                execute_prev.push(execute_now.remove(i - removed));
+                window.execute.push(execute_now.remove(i - removed));
                 removed += 1;
             }
         }
 
-        total_executed += len - execute_prev.len();
+        total_executed += len - window.execute.len();
 
         // transfer decode and fetch stages for the next cycle
-        fetch_prev = fetch_now;
-        decode_prev = decode_now;
+        window.fetch = fetch_now;
+        window.decode = decode_now;
 
     }
 

@@ -17,3 +17,11 @@ pub struct Instruction { // an instruction, as translated from the type of addre
     pub key: i32,          // the unique key for the instruction, for mapping
     pub shortcut_dep: i32, // write the key of the blocking instruction
 }
+
+#[derive(Debug)]
+#[derive(Clone)]
+pub struct Window { // an instruction window, divided by stages
+    pub fetch: Vec<Instruction>,
+    pub decode: Vec<Instruction>,
+    pub execute: Vec<Instruction>,
+}
