@@ -14,10 +14,7 @@ pub fn parse_file(f: &str) -> io::Result<Vec<InstructionRaw>> { // return a vect
     // set dictionary mapping PC to instruction
     let mut pc_mapping: HashMap<String, InstructionRaw> = HashMap::new();
 
-    for line in lines.lines() { // iterate through lines of file
-        if raw_instructions.len() > 500000 {
-            break;
-        }
+    for line in lines.lines() { // iterate through lines of files
 
 
         // split each line by whitespace
