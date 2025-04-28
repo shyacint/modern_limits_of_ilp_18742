@@ -35,7 +35,7 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push("pc".to_string());
             }, 
-            "addi" | "mv" | "andi" | "slli" | "srli" | "neg" | "addiw" | "slliw" | "xori" | "sext" | "sraiw" | "srliw" | "snez" | "not" | "ori" | "srai" | "negw" | "seqz" | "sgtz" | "fcvt" | "fmv" => {
+            "slti" | "fabs" | "addi" | "mv" | "andi" | "slli" | "srli" | "neg" | "addiw" | "slliw" | "xori" | "sext" | "sraiw" | "srliw" | "snez" | "not" | "ori" | "srai" | "negw" | "seqz" | "sgtz" | "fcvt" | "fmv" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
             }, 
@@ -57,7 +57,7 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
             },
-            "remw" | "sra" | "divw" | "divuw" | "rem" | "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
+            "feq" | "remw" | "sra" | "divw" | "divuw" | "rem" | "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
                 reg_read_dep.push(inst.arguments[2].clone());
@@ -71,7 +71,7 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
                 reg_read_dep.push(inst.arguments[1].clone());
                 reg_write_dep.push("pc".to_string());
             },
-            "lui" => {
+            "lui" | "frrm" | "frflags" | "fsflags" => {
                 reg_write_dep.push(inst.arguments[0].clone());
             },
             "j" => {

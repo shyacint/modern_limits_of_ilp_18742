@@ -2,6 +2,6 @@
 *.bin
 *.out
 *.o
-*.log
 *.DS_Store
 target
+sim_traces

@@ -1,39 +1,37 @@
 use std::io;
-use std::fs::File;
-use csv::Writer;
+use std::fs;
+use rayon::prelude::*;
 
 mod parse;
 mod translate;
 mod simulate;
+mod experiment;
 mod models;
 
 fn main() -> io::Result<()>{
+    // read through directories to get vectors of files, then concatentate them
+    let files_06: Vec<fs::DirEntry> = fs::read_dir("/Volumes/KINGSTON/Coursework/modern_limits_of_ilp_18742/sim_traces/SPEC06")?.filter_map(Result::ok).collect();
+    let files_17: Vec<fs::DirEntry> = fs::read_dir("/Volumes/KINGSTON/Coursework/modern_limits_of_ilp_18742/sim_traces/SPEC17")?.filter_map(Result::ok).collect();
+    let mut files = files_06;
+    files.extend(files_17);
 
-    let raw_inst_list = parse::parse_file("/Volumes/KINGSTON/Coursework/modern_limits_of_ilp_18742/sim_traces/SPEC06/omnetpp_trace.log")?;
-    let inst_list = translate::translate_list(raw_inst_list)?;
-
-    let all_inst = inst_list.len();
-    let store_inst = inst_list.iter().filter(|&i| i.mem_store).count();
-    let load_inst = inst_list.iter().filter(|&i| i.mem_load).count();
-
-    let mut profile_writer = Writer::from_writer(File::create("/Volumes/KINGSTON/Coursework/modern_limits_of_ilp_18742/sim_results/exp1/profile.csv")?);
-    profile_writer.write_record(&["Instructions", "Stores", "Loads"])?;
-    profile_writer.write_record(&[all_inst.to_string(), store_inst.to_string(), load_inst.to_string()])?;
-    profile_writer.flush()?;
-
-    let mut sim_writer = Writer::from_writer(File::create("/Volumes/KINGSTON/Coursework/modern_limits_of_ilp_18742/sim_results/exp1/sim.csv")?);
-    sim_writer.write_record(&["Width", "Reg Renaming", "Mem Renaming", "Instructions", "Cycles"])?;
-
-
-    for w in [1,2,4,8,16,32,64,128,256,512,1024] {
-        for m in [true, false] {
-            for r in [true, false] {
-                let (i, c) = simulate::simulate_list(&inst_list, &w, r, m)?;
-                sim_writer.write_record(&[w.to_string(), r.to_string(), m.to_string(), i.to_string(), c.to_string()])?;
-                sim_writer.flush()?;
+    // simulate these experiments in parallel
+    let result: Vec<io::Result<()>> = files.par_iter().map(|file| {
+        if let Some(path) = file.path().to_str() {
+            let path_split: Vec<_> = path.split("/").collect();
+            if path_split[7] == "lbm_trace.log" {
+                let profile_path = "/Volumes/KINGSTON/Coursework/modern_limits_of_ilp_18742/sim_results/exp2/".to_string() + path_split[6] + "/" + path_split[7] + "/profile.csv";
+                let sim_path = "/Volumes/KINGSTON/Coursework/modern_limits_of_ilp_18742/sim_results/exp2/".to_string() + path_split[6] + "/" + path_split[7] + "/sim.csv";
+                experiment::run_experiment(path, &profile_path, &sim_path)?;
             }
         }
+        Ok(())
+    }).collect();
+
+    if let Some(err) = result.into_iter().find_map(Result::err) {
+        return Err(err);
     }
 
     Ok(())
+    
 }

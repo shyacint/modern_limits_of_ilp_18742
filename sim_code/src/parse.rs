@@ -15,6 +15,9 @@ pub fn parse_file(f: &str) -> io::Result<Vec<InstructionRaw>> { // return a vect
     let mut pc_mapping: HashMap<String, InstructionRaw> = HashMap::new();
 
     for line in lines.lines() { // iterate through lines of files
+        if raw_instructions.len() > 1000000 {
+            break;
+        }
 
 
         // split each line by whitespace
