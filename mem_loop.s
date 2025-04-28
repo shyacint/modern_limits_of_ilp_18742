@@ -1,20 +1,23 @@
 .section .data
-value: 
-    .word 0              # Initial value
+value:
+    .word 0
 
 .section .text
 .global _start
 
 _start:
-    la   t0, value       # Load address of 'value'
-    li   t1, 10          # Loop counter = 10
+    la   t0, value
+    li   t1, 10
 
+// while (counter--) {
 loop_mem:
-    lw   t2, 0(t0)       # Load word from memory
-    addi t2, t2, 1       # Increment value
-    sw   t2, 0(t0)       # Store back to memory
-    addi t1, t1, -1      # Decrement loop counter
-    bnez t1, loop_mem    # Repeat if t1 != 0
+    lw   t2, 0(t0)
+    addi t2, t2, 1
+    // value = value + 1
+    sw   t2, 0(t0)
+    addi t1, t1, -1
+    bnez t1, loop_mem
+// }
 
-    li   a7, 93          # Exit syscall
+    li   a7, 93
     ecall
