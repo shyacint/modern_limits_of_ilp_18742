@@ -3,5 +3,6 @@
 *.out
 *.o
 *.DS_Store
+._sim.csv
 target
 sim_traces
