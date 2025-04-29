@@ -30,7 +30,7 @@ pub fn run_experiment(read_file: &str, profile_file: &str, sim_file: &str) -> io
     for w in [1,2,4,8,16,32,64] {
         for m in [true, false] {
             for r in [true, false] {
-                let (i, c) = simulate::simulate_list(&inst_list, &w, r, m, &2, &2)?;
+                let (i, c) = simulate::simulate_list(&inst_list, &w, r, m, &3, &2)?;
                 sim_writer.write_record(&[w.to_string(), r.to_string(), m.to_string(), i.to_string(), c.to_string()])?;
                 sim_writer.flush()?;
             }
