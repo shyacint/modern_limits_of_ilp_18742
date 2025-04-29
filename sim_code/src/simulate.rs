@@ -4,7 +4,10 @@ use crate::models::{Instruction, Window};
 
 // iterates through prev and checks for blocking dependencies with inst1
 // returns bool - can execute or not, and i32 - key of blocking dependency (or -1)
-fn check_dependencies(inst1: &Instruction, prev: &[Instruction], memory_renaming: bool, register_renaming: bool) -> (bool, i32) {
+fn check_dependencies(inst1: &Instruction, prev: &[Instruction], memory_renaming: bool, register_renaming: bool, in_window: bool) -> (bool, i32) {
+    if !in_window { // if not in window, cannot execute
+        return (false, -2);
+    }
     
     let key = prev.iter().rev().find_map(|inst2| { // iterates through prev, returns the blocking key if we get it
          // check if a logged shortcut dependency is still in the execute stage
@@ -62,7 +65,7 @@ fn check_dependencies(inst1: &Instruction, prev: &[Instruction], memory_renaming
 }
 
 
-pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool, memory_renaming: bool) -> io::Result<(usize, usize)> {
+pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renaming: bool, memory_renaming: bool, exec_gap_multiplier: &usize, num_exec_windows: &usize) -> io::Result<(usize, usize)> {
     // intialize counting logic
     let total_instructions  = inst_list.len();
     let mut total_executed = 0;
@@ -72,11 +75,14 @@ pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renam
     // intialize state logic
     let mut window = Window{fetch: vec![], decode: vec![], execute: vec![]};
 
+    // adjust width if needed 
+    let effective_width = ((num_exec_windows - 1) * exec_gap_multiplier + num_exec_windows) * width;
+
     while total_executed < total_instructions {
         num_cycles += 1;
 
         // first, fetch all instructions which can be fetched
-        let capacity = width - (window.fetch.len() + window.decode.len() + window.execute.len()); // capacity is width - current num of instructions in window
+        let capacity = effective_width - (window.fetch.len() + window.decode.len() + window.execute.len()); // capacity is width - current num of instructions in window
         let mut fetch_now: Vec<Instruction> = vec![];
         for i in total_fetched..(total_fetched + capacity) {
             if i >= total_instructions {
@@ -92,11 +98,40 @@ pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renam
         // execute all instructions which can be executed (those in the previous exeucte or decode stage)
         let mut execute_now: Vec<Instruction> = [window.execute, window.decode].concat();
 
+        // initialize execute decision logic - assume true
         let len = execute_now.len();
-        // determine if CAN execute
+        let mut window_bounds = vec![true; len];
+
+        // mark for false if outside of effective execution window
+        let avail_gap = len as i32 - ((num_exec_windows * width) as i32); 
+        match avail_gap {
+            x if x <= 0 => (), // if there is no availabe gap, do nothing
+            x if x > 0 => {
+                // calculate gap between windows and leftover
+                let per_gap = (avail_gap as usize) / (*num_exec_windows - 1);
+                let leftover = (avail_gap as usize) % (*num_exec_windows - 1);
+                // iterate windows and mark gaps as false
+                for w in 1..*num_exec_windows {
+                    for i in 0..per_gap {
+                        let effective_access = w*width + i;
+                        if effective_access >= len {
+                            panic!("Effective access reached end of execute window.");
+                        }
+                        window_bounds[effective_access] = false;
+                    }
+                }
+                // also make leftover gap at the end false
+                for l in 0..leftover {
+                    let effective_access = len - 1 - l;
+                    window_bounds[effective_access] = false;
+                }
+            },
+            _ => panic!("Unexpected gap value.")
+        };
+
 
         let decide_execute: Vec<(bool, i32)> = execute_now.iter().enumerate().map(|(i, inst)| {
-            check_dependencies(inst, &execute_now[..i], memory_renaming, register_renaming)
+            check_dependencies(inst, &execute_now[..i], memory_renaming, register_renaming, window_bounds[i])
         }).collect();
 
 
@@ -104,7 +139,7 @@ pub fn simulate_list(inst_list: &Vec<Instruction>, width: &usize, register_renam
         window.execute = vec![];
         let mut removed = 0;
         for (i, (decide, key)) in decide_execute.iter().enumerate() {
-            if !decide {
+            if !decide { // if cannot execute, or not in bounds, send to next
                 execute_now[i - removed].shortcut_dep = *key;
                 window.execute.push(execute_now.remove(i - removed));
                 removed += 1;
