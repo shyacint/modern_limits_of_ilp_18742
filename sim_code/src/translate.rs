@@ -26,16 +26,10 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
 
         // fill dependency lists as necessary
         match inst.inst.as_str() {
-            "jal" => {
+            "jal" | "auipc" | "lui" | "frrm" | "frflags" | "fsflags"=> {
                 reg_write_dep.push(inst.arguments[0].clone());
-                reg_read_dep.push("pc".to_string());
-                reg_write_dep.push("pc".to_string());
-            }
-            "auipc" => {
-                reg_write_dep.push(inst.arguments[0].clone());
-                reg_read_dep.push("pc".to_string());
             }, 
-            "slti" | "fabs" | "addi" | "mv" | "andi" | "slli" | "srli" | "neg" | "addiw" | "slliw" | "xori" | "sext" | "sraiw" | "srliw" | "snez" | "not" | "ori" | "srai" | "negw" | "seqz" | "sgtz" | "fcvt" | "fmv" => {
+            "jalr" | "slti" | "fabs" | "addi" | "mv" | "andi" | "slli" | "srli" | "neg" | "addiw" | "slliw" | "xori" | "sext" | "sraiw" | "srliw" | "snez" | "not" | "ori" | "srai" | "negw" | "seqz" | "sgtz" | "fcvt" | "fmv" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
             }, 
@@ -44,12 +38,6 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
                 let reg = parse_offset(&inst.arguments[1]);
                 reg_read_dep.push(reg.clone());
                 mem_load = true;
-            }, 
-            "jalr" => {
-                reg_write_dep.push(inst.arguments[0].clone());
-                reg_read_dep.push(inst.arguments[1].clone());
-                reg_write_dep.push("pc".to_string());
-                reg_read_dep.push("pc".to_string());
             },
             "sd" | "sw" | "sb" | "sh" | "fsd" | "fsw" => {
                 reg_read_dep.push(inst.arguments[0].clone());
@@ -64,19 +52,11 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
             }, 
             "bnez" | "beqz" | "jr" | "blez" | "bltz" | "bgtz" | "bgez" => {
                 reg_read_dep.push(inst.arguments[0].clone());
-                reg_write_dep.push("pc".to_string());
             }, 
             "bleu" | "bne" | "bgtu" | "beq" | "ble" | "bgt" => {
                 reg_read_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
-                reg_write_dep.push("pc".to_string());
             },
-            "lui" | "frrm" | "frflags" | "fsflags" => {
-                reg_write_dep.push(inst.arguments[0].clone());
-            },
-            "j" => {
-                reg_write_dep.push("pc".to_string());
-            }, 
             "amoswap" | "sc" | "amoadd" | "amomaxu" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
@@ -84,7 +64,7 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
             },
-            "ret" | "ecall" | "fence" | "nop" => (),
+            "j" | "ret" | "ecall" | "fence" | "nop" => (),
             _ => panic!("Instruction {} not implemented!", inst.inst.as_str()),
         }
 
