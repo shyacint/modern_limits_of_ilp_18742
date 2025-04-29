@@ -24,15 +24,17 @@ pub fn run_experiment(read_file: &str, profile_file: &str, sim_file: &str) -> io
 
     // simulate the instruction
     let mut sim_writer = Writer::from_writer(File::create(sim_file)?);
-    sim_writer.write_record(&["Width", "Reg Renaming", "Mem Renaming", "Instructions", "Cycles"])?;
+    sim_writer.write_record(&["Width", "Reg Renaming", "Mem Renaming", "Gap Multiplier", "Instructions", "Cycles"])?;
 
 
     for w in [1,2,4,8,16,32,64] {
-        for m in [true, false] {
-            for r in [true, false] {
-                let (i, c) = simulate::simulate_list(&inst_list, &w, r, m, &3, &2)?;
-                sim_writer.write_record(&[w.to_string(), r.to_string(), m.to_string(), i.to_string(), c.to_string()])?;
-                sim_writer.flush()?;
+        for m in [true] {
+            for r in [true] {
+                for g in [10, 15] {
+                    let (i, c) = simulate::simulate_list(&inst_list, &w, r, m, &g, &2)?;
+                    sim_writer.write_record(&[w.to_string(), r.to_string(), m.to_string(), g.to_string(), i.to_string(), c.to_string()])?;
+                    sim_writer.flush()?;
+                }
             }
         }
     }

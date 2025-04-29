@@ -1,0 +1,15 @@
+Width,Reg Renaming,Mem Renaming,Gap Multiplier,Instructions,Cycles
+1,true,true,10,1000001,683021
+1,true,true,15,1000001,683322
+2,true,true,10,1000001,448894
+2,true,true,15,1000001,496976
+4,true,true,10,1000001,307128
+4,true,true,15,1000001,312698
+8,true,true,10,1000001,222709
+8,true,true,15,1000001,230631
+16,true,true,10,1000001,192079
+16,true,true,15,1000001,192185
+32,true,true,10,1000001,191027
+32,true,true,15,1000001,191037
+64,true,true,10,1000001,190644
+64,true,true,15,1000001,190644
