@@ -16,6 +16,11 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
     // set buffer for translated instruction list
     let mut inst_list = vec![];
 
+    // count memory instructions
+    let mut mem = 0;
+    let mut alu = 0;
+    let mut branch = 0;
+
     for (i, inst) in raw_inst_list.iter().enumerate() {
         // create empty dependency lists
         let mut reg_read_dep = vec![];
@@ -26,36 +31,53 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
 
         // fill dependency lists as necessary
         match inst.inst.as_str() {
-            "jal" | "auipc" | "lui" | "frrm" | "frflags" | "fsflags"=> {
+            "jal" | "auipc" | "lui" | "frrm" | "frflags" | "fsflags" => {
                 reg_write_dep.push(inst.arguments[0].clone());
+                if inst.inst.as_str() == "jal" {
+                    branch += 1;
+                } else if inst.inst.as_str() == "lui" {
+                    mem += 1;
+                } else {
+                    alu += 1;
+                }
             }, 
             "jalr" | "slti" | "fabs" | "addi" | "mv" | "andi" | "slli" | "srli" | "neg" | "addiw" | "slliw" | "xori" | "sext" | "sraiw" | "srliw" | "snez" | "not" | "ori" | "srai" | "negw" | "seqz" | "sgtz" | "fcvt" | "fmv" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
+                if inst.inst.as_str() == "jalr" {
+                    branch += 1;
+                } else {
+                    alu += 1;
+                }
             }, 
             "ld" | "lw" | "lbu" | "lhu" | "lwu" | "lb" | "fld" | "lr" | "lh" | "flw" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 let reg = parse_offset(&inst.arguments[1]);
                 reg_read_dep.push(reg.clone());
                 mem_load = true;
+                mem += 1;
             },
             "sd" | "sw" | "sb" | "sh" | "fsd" | "fsw" => {
                 reg_read_dep.push(inst.arguments[0].clone());
                 let reg = parse_offset(&inst.arguments[1]);
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
+                mem += 1;
             },
             "feq" | "remw" | "sra" | "divw" | "divuw" | "rem" | "srlw" | "add" | "mul" | "sub" | "and" | "divu" | "addw" | "xor" | "remu" | "or" | "sllw" | "mulhu" | "srl" | "sltu" | "subw" | "remuw" | "mulw" | "div" | "slt" | "sll" | "sraw" | "fle" | "fmul" | "fdiv" | "flt" | "fadd" | "fsub" => {
                 reg_write_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
                 reg_read_dep.push(inst.arguments[2].clone());
+                alu += 1;
             }, 
             "bnez" | "beqz" | "jr" | "blez" | "bltz" | "bgtz" | "bgez" => {
                 reg_read_dep.push(inst.arguments[0].clone());
+                branch += 1;
             }, 
             "bleu" | "bne" | "bgtu" | "beq" | "ble" | "bgt" => {
                 reg_read_dep.push(inst.arguments[0].clone());
                 reg_read_dep.push(inst.arguments[1].clone());
+                branch += 1;
             },
             "amoswap" | "sc" | "amoadd" | "amomaxu" => {
                 reg_write_dep.push(inst.arguments[0].clone());
@@ -63,13 +85,19 @@ pub fn translate_list(raw_inst_list: Vec<InstructionRaw>) -> io::Result<Vec<Inst
                 let reg = parse_offset(&inst.arguments[2]);
                 reg_read_dep.push(reg.clone());
                 mem_store = true;
+                mem += 1;
             },
-            "j" | "ret" | "ecall" | "fence" | "nop" => (),
+            "j" | "ret" | "ecall" => {
+                branch += 1;
+            },
+            "fence" | "nop" => (),
             _ => panic!("Instruction {} not implemented!", inst.inst.as_str()),
         }
 
         inst_list.push(Instruction{reg_read_dep, reg_write_dep, mem_store, mem_load, mem_addr: inst.mem_addr.clone(), key: i as i32, shortcut_dep: -1});
     }
+
+    print!("\nMem: {}, ALU: {}, Branch: {}", mem, alu, branch);
 
     Ok(inst_list)
 }
