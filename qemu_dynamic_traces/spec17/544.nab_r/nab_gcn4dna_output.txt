@@ -1,0 +1,3 @@
+nabmd gcn4dna 1850041461
+
+Reading .pdb file (gcn4dna/gcn4dna.pdb)
