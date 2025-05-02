@@ -22,7 +22,7 @@ SPEC_BENCHMARK_TO_QEMU_COMMAND_MAP = {
     "453.povray": [
         ("povray", ["SPEC-benchmark-train.ini"], "povray_trace.log", "povray_output.txt"),
     ],
-        "470.lbm": [
+    "470.lbm": [
         ("lbm", ["300", "lbm.in", "0", "1", "100_100_130_cf_b.of"], "lbm_trace.log", "lbm_output.txt"),
     ],
         "429.mcf": [
