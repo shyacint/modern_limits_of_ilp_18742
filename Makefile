@@ -43,6 +43,6 @@ run: $(PROGS)
 
 
 clean_bin:
-	rm -f *.bin
+	rm -f *.bin *.o
 
 clean: clean_bin clean_traces
